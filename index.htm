@@ -32,8 +32,9 @@
     <div class="container mx-auto p-4 md:p-8">
         
         <header class="mb-8">
-            <div class="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                <img src="http://i.imgur.com/Fln53Oi.png" alt="Logo da Empresa" class="h-12 md:h-16">
+            <div class="flex items-center gap-4">
+            <img src="http://i.imgur.com/Fln53Oi.png" alt="Logo da Empresa" class="h-12 md:h-16">
+
                 <div>
                     <h1 class="text-3xl md:text-4xl font-bold text-gray-700">Dashboard de Acompanhamento</h1>
                     <p class="text-gray-500 mt-1">Adesão ao preenchimento de checklists de rotina.</p>
@@ -55,28 +56,28 @@
         </div>
 
         <main id="dashboard-content" class="hidden">
-            <div class="bg-white p-4 rounded-lg shadow-md mb-8 flex flex-wrap items-end gap-4">
-                <div class="w-full sm:flex-1 min-w-[150px]">
+            <div class="bg-white p-4 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div>
                     <label for="startDate" class="block text-sm font-medium text-gray-700">Data Início</label>
                     <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
-                <div class="w-full sm:flex-1 min-w-[150px]">
+                <div>
                     <label for="endDate" class="block text-sm font-medium text-gray-700">Data Fim</label>
                     <input type="date" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
-                <div class="w-full sm:flex-1 min-w-[150px]">
+                <div>
                     <label for="unitFilter" class="block text-sm font-medium text-gray-700">Unidade</label>
                     <select id="unitFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="all">Todas</option>
                     </select>
                 </div>
-                <div class="w-full sm:flex-1 min-w-[150px]">
+                <div>
                     <label for="deptFilter" class="block text-sm font-medium text-gray-700">Departamento</label>
                     <select id="deptFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="all">Todos</option>
                     </select>
                 </div>
-                <button id="resetFilters" class="w-full sm:w-auto bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                <button id="resetFilters" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
                     Limpar Filtros
                 </button>
             </div>
@@ -100,15 +101,15 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white p-4 rounded-lg shadow-md relative h-96 md:h-auto">
+                <div class="bg-white p-4 rounded-lg shadow-md">
                     <h3 class="font-semibold mb-4 text-center">Adesão por Unidade</h3>
                     <canvas id="byUnitChart"></canvas>
                 </div>
-                <div class="bg-white p-4 rounded-lg shadow-md relative h-96 md:h-auto">
+                <div class="bg-white p-4 rounded-lg shadow-md">
                     <h3 class="font-semibold mb-4 text-center">Adesão por Departamento</h3>
                     <canvas id="byDeptChart"></canvas>
                 </div>
-                <div class="bg-white p-4 rounded-lg shadow-md lg:col-span-2 relative h-96 md:h-auto">
+                 <div class="bg-white p-4 rounded-lg shadow-md lg:col-span-2">
                     <h3 class="font-semibold mb-4 text-center">Adesão ao Longo do Tempo</h3>
                     <canvas id="overTimeChart"></canvas>
                 </div>
@@ -126,6 +127,7 @@
         let fullData = { expected: {}, actual: [], unitMapping: {} };
         let charts = {};
 
+        // Registrar plugins do Chart.js globalmente
         Chart.register(ChartDataLabels);
         dayjs.extend(dayjs_plugin_utc);
         dayjs.extend(dayjs_plugin_timezone);
@@ -171,6 +173,7 @@
             document.getElementById('startDate').value = thirtyDaysAgo.format('YYYY-MM-DD');
             document.getElementById('endDate').value = today.format('YYYY-MM-DD');
 
+            // Adiciona a data e hora da última atualização
             const userTimezone = dayjs.tz.guess();
             document.getElementById('last-updated').textContent = `Última atualização: ${dayjs().tz(userTimezone).format('DD/MM/YYYY HH:mm:ss')}`;
 
@@ -294,7 +297,7 @@
             });
 
             filteredData.forEach(item => {
-                if(byUnit[item.unidade]) byUnit[item.unidade].actual++;
+                 if(byUnit[item.unidade]) byUnit[item.unidade].actual++;
             });
 
             const labels = Object.keys(byUnit);
@@ -338,6 +341,7 @@
             const labels = Object.keys(byDept);
             const data = labels.map(dept => {
                 const { actual, expected } = byDept[dept];
+                // Este é o cálculo: (Checklists Preenchidos / Esperado para o Dept) * 100
                 return expected > 0 ? (actual / expected) * 100 : 0;
             });
 
@@ -394,34 +398,33 @@
             const ctx = document.getElementById(canvasId).getContext('2d');
             if (charts[canvasId]) charts[canvasId].destroy();
 
-            // MUDANÇA PRINCIPAL PARA RESPONSIVIDADE DOS GRÁFICOS
             const defaultOptions = {
-                responsive: true,
-                maintainAspectRatio: false, // Permite que o gráfico preencha o contêiner sem manter a proporção original
                 plugins: {
                     datalabels: {
                         anchor: 'end',
                         align: 'top',
-                        color: '#4A5568',
+                        color: '#4A5568', // Cor do texto (cinza escuro)
                         font: {
                             weight: 'bold'
                         },
-                        formatter: function(value) {
-                            if (value === null || isNaN(value)) return '';
+                        formatter: function(value, context) {
+                            // Formata o número para ter 1 casa decimal e adiciona '%'
                             return value.toFixed(1) + '%';
                         }
                     }
                 }
             };
             
+            // Une as opções padrão com as específicas do gráfico
             const finalOptions = { ...defaultOptions, ...options };
             if(options.plugins) {
                  finalOptions.plugins = { ...defaultOptions.plugins, ...options.plugins };
             }
              if(options.indexAxis === 'y'){
-                 finalOptions.plugins.datalabels.align = 'right';
-                 finalOptions.plugins.datalabels.anchor = 'end';
+                finalOptions.plugins.datalabels.align = 'right';
+                finalOptions.plugins.datalabels.anchor = 'end';
              }
+
 
             charts[canvasId] = new Chart(ctx, { type, data, options: finalOptions });
         }
