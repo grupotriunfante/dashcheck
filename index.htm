@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Acompanhamento de Checklist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/timezone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .kpi-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            padding: 1.5rem;
+            transition: all 0.3s ease-in-out;
+        }
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="mb-8">
+            <div class="flex items-center gap-4">
+            <img src="http://i.imgur.com/Fln53Oi.png" alt="Logo da Empresa" class="h-12 md:h-16">
+
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-700">Dashboard de Acompanhamento</h1>
+                    <p class="text-gray-500 mt-1">Adesão ao preenchimento de checklists de rotina.</p>
+                    <p id="last-updated" class="text-sm text-gray-500 mt-1"></p>
+                </div>
+            </div>
+        </header>
+
+        <div id="loading-state" class="text-center py-10">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-gray-600">Carregando dados das planilhas...</p>
+        </div>
+        <div id="error-state" class="hidden text-center py-10 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
+            <strong class="font-bold">Erro!</strong>
+            <span class="block sm:inline" id="error-message">Não foi possível carregar os dados.</span>
+        </div>
+
+        <main id="dashboard-content" class="hidden">
+            <div class="bg-white p-4 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div>
+                    <label for="startDate" class="block text-sm font-medium text-gray-700">Data Início</label>
+                    <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="endDate" class="block text-sm font-medium text-gray-700">Data Fim</label>
+                    <input type="date" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="unitFilter" class="block text-sm font-medium text-gray-700">Unidade</label>
+                    <select id="unitFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="all">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="deptFilter" class="block text-sm font-medium text-gray-700">Departamento</label>
+                    <select id="deptFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="all">Todos</option>
+                    </select>
+                </div>
+                <button id="resetFilters" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                    Limpar Filtros
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div class="kpi-card">
+                    <h3 class="text-gray-500 font-medium">Preenchimentos Esperados (Dias Úteis)</h3>
+                    <p id="expected-fills" class="text-3xl font-bold mt-2">0</p>
+                    <p class="text-sm text-gray-400">Total no período filtrado</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-gray-500 font-medium">Preenchimentos Realizados</h3>
+                    <p id="actual-fills" class="text-3xl font-bold mt-2">0</p>
+                     <p class="text-sm text-gray-400">Total no período filtrado</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-gray-500 font-medium">Taxa de Adesão Geral</h3>
+                    <p id="adherence-rate" class="text-3xl font-bold mt-2 text-green-600">0%</p>
+                    <p class="text-sm text-gray-400">Realizado vs. Esperado</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="font-semibold mb-4 text-center">Adesão por Unidade</h3>
+                    <canvas id="byUnitChart"></canvas>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="font-semibold mb-4 text-center">Adesão por Departamento</h3>
+                    <canvas id="byDeptChart"></canvas>
+                </div>
+                 <div class="bg-white p-4 rounded-lg shadow-md lg:col-span-2">
+                    <h3 class="font-semibold mb-4 text-center">Adesão ao Longo do Tempo</h3>
+                    <canvas id="overTimeChart"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ===================================================================================
+        // CONFIGURAÇÃO
+        // COLE A URL DO SEU APP SCRIPT PUBLICADO AQUI
+        // ===================================================================================
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbze3vP2FFHVswgb33a7dHWKhAtCtcQ5gWychGMRmbDNOBtN8SXe6m1K9p96St2zRvzy/exec'; 
+        
+        let fullData = { expected: {}, actual: [], unitMapping: {} };
+        let charts = {};
+
+        // Registrar plugins do Chart.js globalmente
+        Chart.register(ChartDataLabels);
+        dayjs.extend(dayjs_plugin_utc);
+        dayjs.extend(dayjs_plugin_timezone);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (SCRIPT_URL === 'URL_DO_SEU_APP_SCRIPT_AQUI' || SCRIPT_URL === '') {
+                showError('Por favor, configure a URL do Google Apps Script na variável SCRIPT_URL no arquivo dashboard.html.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(SCRIPT_URL);
+                if (!response.ok) throw new Error(`Erro na rede: ${response.statusText}`);
+                const data = await response.json();
+                if (data.error) throw new Error(data.details || data.error);
+                fullData = data;
+                initializeDashboard();
+                showContent();
+            } catch (error) {
+                console.error('Falha ao buscar dados:', error);
+                showError(`Não foi possível carregar os dados. Verifique a URL do script, os IDs das planilhas e as permissões. Detalhes: ${error.message}`);
+            }
+        });
+        
+        function showContent() {
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+        }
+
+        function showError(message) {
+            document.getElementById('loading-state').classList.add('hidden');
+            const errorState = document.getElementById('error-state');
+            document.getElementById('error-message').textContent = message;
+            errorState.classList.remove('hidden');
+        }
+
+        function initializeDashboard() {
+            populateFilters();
+            setupEventListeners();
+            
+            const today = dayjs();
+            const thirtyDaysAgo = today.subtract(30, 'day');
+            document.getElementById('startDate').value = thirtyDaysAgo.format('YYYY-MM-DD');
+            document.getElementById('endDate').value = today.format('YYYY-MM-DD');
+
+            // Adiciona a data e hora da última atualização
+            const userTimezone = dayjs.tz.guess();
+            document.getElementById('last-updated').textContent = `Última atualização: ${dayjs().tz(userTimezone).format('DD/MM/YYYY HH:mm:ss')}`;
+
+            updateDashboard();
+        }
+
+        function populateFilters() {
+            const units = new Set(fullData.actual.map(item => item.unidade));
+            const depts = new Set(fullData.actual.map(item => item.departamento));
+
+            const unitFilter = document.getElementById('unitFilter');
+            Array.from(units).sort().forEach(unit => unitFilter.add(new Option(unit, unit)));
+
+            const deptFilter = document.getElementById('deptFilter');
+            Array.from(depts).sort().forEach(dept => deptFilter.add(new Option(dept, dept)));
+        }
+        
+        function setupEventListeners() {
+            ['startDate', 'endDate', 'unitFilter', 'deptFilter'].forEach(id => {
+                document.getElementById(id).addEventListener('change', updateDashboard);
+            });
+            document.getElementById('resetFilters').addEventListener('click', () => {
+                document.getElementById('unitFilter').value = 'all';
+                document.getElementById('deptFilter').value = 'all';
+                const today = dayjs();
+                const thirtyDaysAgo = today.subtract(30, 'day');
+                document.getElementById('startDate').value = thirtyDaysAgo.format('YYYY-MM-DD');
+                document.getElementById('endDate').value = today.format('YYYY-MM-DD');
+                updateDashboard();
+            });
+        }
+
+        function countWeekdays(start, end) {
+            let currentDate = dayjs(start);
+            const endDate = dayjs(end);
+            let count = 0;
+
+            if (currentDate.isAfter(endDate)) return 0;
+
+            while (currentDate.isBefore(endDate) || currentDate.isSame(endDate, 'day')) {
+                const dayOfWeek = currentDate.day(); 
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                    count++;
+                }
+                currentDate = currentDate.add(1, 'day');
+            }
+            return count;
+        }
+
+        function updateDashboard() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const selectedUnit = document.getElementById('unitFilter').value;
+            const selectedDept = document.getElementById('deptFilter').value;
+
+            if (!startDate || !endDate || dayjs(startDate).isAfter(dayjs(endDate))) return;
+
+            const filteredActualData = fullData.actual.filter(item => {
+                const itemDate = dayjs(item.data);
+                return (itemDate.isAfter(dayjs(startDate).subtract(1, 'day')) &&
+                        itemDate.isBefore(dayjs(endDate).add(1, 'day')) &&
+                        (selectedUnit === 'all' || item.unidade === selectedUnit) &&
+                        (selectedDept === 'all' || item.departamento === selectedDept));
+            });
+            
+            const workingDays = countWeekdays(startDate, endDate);
+            let totalExpected = 0;
+            
+            for(const unit of Object.keys(fullData.expected)) {
+                const unitParts = unit.split('/');
+                const unitMatchesFilter = selectedUnit === 'all' || unitParts.includes(selectedUnit) || unit === selectedUnit;
+
+                if (unitMatchesFilter) {
+                    for(const dept in fullData.expected[unit]) {
+                        const deptMatchesFilter = selectedDept === 'all' || dept === selectedDept;
+                        if(deptMatchesFilter){
+                            totalExpected += (fullData.expected[unit][dept] * workingDays);
+                        }
+                    }
+                }
+            }
+
+            document.getElementById('expected-fills').textContent = totalExpected.toLocaleString('pt-BR');
+            document.getElementById('actual-fills').textContent = filteredActualData.length.toLocaleString('pt-BR');
+            const adherence = totalExpected > 0 ? (filteredActualData.length / totalExpected) * 100 : 0;
+            document.getElementById('adherence-rate').textContent = `${adherence.toFixed(1)}%`;
+            
+            updateCharts(filteredActualData, workingDays);
+        }
+
+        function updateCharts(filteredData, numDays) {
+            updateUnitChart(filteredData, numDays);
+            updateDeptChart(filteredData, numDays);
+            updateTimeChart(filteredData);
+        }
+        
+        function getExpectedUnitKey(unitName) {
+            return fullData.unitMapping[unitName] || unitName;
+        }
+
+        function getExpectedFor(unit, dept, numDays) {
+            let total = 0;
+            const expectedUnitKey = getExpectedUnitKey(unit);
+
+            if (fullData.expected[expectedUnitKey]) {
+                if (dept === 'all') {
+                    total = Object.values(fullData.expected[expectedUnitKey]).reduce((sum, val) => sum + val, 0);
+                } else if (fullData.expected[expectedUnitKey][dept]) {
+                    total = fullData.expected[expectedUnitKey][dept];
+                }
+            }
+            return total * numDays;
+        }
+
+        function updateUnitChart(filteredData, numDays) {
+            const byUnit = {};
+            const unitList = Array.from(new Set(fullData.actual.map(d => d.unidade))).sort();
+
+            unitList.forEach(unit => {
+                byUnit[unit] = { actual: 0, expected: getExpectedFor(unit, 'all', numDays) };
+            });
+
+            filteredData.forEach(item => {
+                 if(byUnit[item.unidade]) byUnit[item.unidade].actual++;
+            });
+
+            const labels = Object.keys(byUnit);
+            const data = labels.map(unit => {
+                const { actual, expected } = byUnit[unit];
+                return expected > 0 ? (actual / expected) * 100 : 0;
+            });
+
+            renderChart('byUnitChart', 'bar', {
+                labels,
+                datasets: [{ label: 'Adesão (%)', data, backgroundColor: 'rgba(59, 130, 246, 0.7)' }]
+            });
+        }
+
+        function updateDeptChart(filteredData, numDays) {
+            const byDept = {};
+            const deptList = Array.from(new Set(fullData.actual.map(d => d.departamento))).sort();
+            const selectedUnit = document.getElementById('unitFilter').value;
+            
+            deptList.forEach(dept => {
+                let expected = 0;
+                if (selectedUnit === 'all') {
+                    for (const unitKey in fullData.expected) {
+                        if (fullData.expected[unitKey][dept]) {
+                            expected += fullData.expected[unitKey][dept];
+                        }
+                    }
+                } else {
+                    const expectedUnitKey = getExpectedUnitKey(selectedUnit);
+                     if (fullData.expected[expectedUnitKey] && fullData.expected[expectedUnitKey][dept]) {
+                        expected = fullData.expected[expectedUnitKey][dept];
+                    }
+                }
+                byDept[dept] = { actual: 0, expected: expected * numDays };
+            });
+            
+            filteredData.forEach(item => {
+                if(byDept[item.departamento]) byDept[item.departamento].actual++;
+            });
+
+            const labels = Object.keys(byDept);
+            const data = labels.map(dept => {
+                const { actual, expected } = byDept[dept];
+                // Este é o cálculo: (Checklists Preenchidos / Esperado para o Dept) * 100
+                return expected > 0 ? (actual / expected) * 100 : 0;
+            });
+
+            renderChart('byDeptChart', 'bar', {
+                labels,
+                datasets: [{ label: 'Adesão (%)', data, backgroundColor: 'rgba(16, 185, 129, 0.7)' }]
+            }, { indexAxis: 'y' });
+        }
+
+        function updateTimeChart(filteredData) {
+            const byDate = {};
+            const startDate = dayjs(document.getElementById('startDate').value);
+            const endDate = dayjs(document.getElementById('endDate').value);
+            
+            for (let d = startDate; d.isBefore(endDate.add(1, 'day')); d = d.add(1, 'day')) {
+                byDate[d.format('YYYY-MM-DD')] = { actual: 0 };
+            }
+            
+            let dailyExpected = 0;
+            const selectedUnit = document.getElementById('unitFilter').value;
+            const selectedDept = document.getElementById('deptFilter').value;
+            for(const unit of Object.keys(fullData.expected)) {
+                const unitParts = unit.split('/');
+                const unitMatchesFilter = selectedUnit === 'all' || unitParts.includes(selectedUnit) || unit === selectedUnit;
+                if (unitMatchesFilter) {
+                    for(const dept in fullData.expected[unit]) {
+                        const deptMatchesFilter = selectedDept === 'all' || dept === selectedDept;
+                        if(deptMatchesFilter) dailyExpected += fullData.expected[unit][dept];
+                    }
+                }
+            }
+
+            filteredData.forEach(item => {
+                if (byDate[item.data]) byDate[item.data].actual++;
+            });
+
+            const labels = Object.keys(byDate).sort();
+            const data = labels.map(date => {
+                const { actual } = byDate[date];
+                const dayOfWeek = dayjs(date).day();
+                if (dailyExpected > 0 && dayOfWeek !== 0 && dayOfWeek !== 6) {
+                    return (actual / dailyExpected) * 100;
+                }
+                return null;
+            });
+            
+            renderChart('overTimeChart', 'line', {
+                labels,
+                datasets: [{ label: 'Adesão Diária (%)', data, borderColor: 'rgb(239, 68, 68)', tension: 0.1, spanGaps: false }]
+            });
+        }
+        
+        function renderChart(canvasId, type, data, options = {}) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+
+            const defaultOptions = {
+                plugins: {
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#4A5568', // Cor do texto (cinza escuro)
+                        font: {
+                            weight: 'bold'
+                        },
+                        formatter: function(value, context) {
+                            // Formata o número para ter 1 casa decimal e adiciona '%'
+                            return value.toFixed(1) + '%';
+                        }
+                    }
+                }
+            };
+            
+            // Une as opções padrão com as específicas do gráfico
+            const finalOptions = { ...defaultOptions, ...options };
+            if(options.plugins) {
+                 finalOptions.plugins = { ...defaultOptions.plugins, ...options.plugins };
+            }
+             if(options.indexAxis === 'y'){
+                finalOptions.plugins.datalabels.align = 'right';
+                finalOptions.plugins.datalabels.anchor = 'end';
+             }
+
+
+            charts[canvasId] = new Chart(ctx, { type, data, options: finalOptions });
+        }
+    </script>
+</body>
+</html>
