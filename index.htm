@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -32,15 +31,24 @@
 
     <div class="container mx-auto p-4 md:p-8">
         
-        <header class="mb-8">
+        <header class="mb-8 flex justify-between items-center">
             <div class="flex items-center gap-4">
-            <img src="http://i.imgur.com/Fln53Oi.png" alt="Logo da Empresa" class="h-12 md:h-16">
-
+                <img src="http://i.imgur.com/Fln53Oi.png" alt="Logo da Empresa" class="h-12 md:h-16">
                 <div>
-                    <h1 class="text-3xl md:text-4xl font-bold text-gray-700">Dashboard de Acompanhamento</h1>
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-700">Gerenciamento de Checklist de Rotina</h1>
                     <p class="text-gray-500 mt-1">Adesão ao preenchimento de checklists de rotina.</p>
                     <p id="last-updated" class="text-sm text-gray-500 mt-1"></p>
                 </div>
+            </div>
+            <div>
+                <button id="fullscreen-btn" title="Alternar Tela Cheia" class="p-2 rounded-full text-gray-500 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg id="fs-enter-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" />
+                    </svg>
+                    <svg id="fs-exit-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 4H4v6m16 4v6h-6M4 20l6-6m8-8l-6 6" />
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -121,14 +129,12 @@
     <script>
         // ===================================================================================
         // CONFIGURAÇÃO
-        // COLE A URL DO SEU APP SCRIPT PUBLICADO AQUI
         // ===================================================================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbze3vP2FFHVswgb33a7dHWKhAtCtcQ5gWychGMRmbDNOBtN8SXe6m1K9p96St2zRvzy/exec'; 
         
         let fullData = { expected: {}, actual: [], unitMapping: {} };
         let charts = {};
 
-        // Registrar plugins do Chart.js globalmente
         Chart.register(ChartDataLabels);
         dayjs.extend(dayjs_plugin_utc);
         dayjs.extend(dayjs_plugin_timezone);
@@ -156,6 +162,7 @@
         function showContent() {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('dashboard-content').classList.remove('hidden');
+            startAutoScroll();
         }
 
         function showError(message) {
@@ -174,7 +181,6 @@
             document.getElementById('startDate').value = thirtyDaysAgo.format('YYYY-MM-DD');
             document.getElementById('endDate').value = today.format('YYYY-MM-DD');
 
-            // Adiciona a data e hora da última atualização
             const userTimezone = dayjs.tz.guess();
             document.getElementById('last-updated').textContent = `Última atualização: ${dayjs().tz(userTimezone).format('DD/MM/YYYY HH:mm:ss')}`;
 
@@ -193,9 +199,12 @@
         }
         
         function setupEventListeners() {
+            // Event listeners dos filtros
             ['startDate', 'endDate', 'unitFilter', 'deptFilter'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateDashboard);
             });
+
+            // Event listener do botão de reset
             document.getElementById('resetFilters').addEventListener('click', () => {
                 document.getElementById('unitFilter').value = 'all';
                 document.getElementById('deptFilter').value = 'all';
@@ -205,6 +214,41 @@
                 document.getElementById('endDate').value = today.format('YYYY-MM-DD');
                 updateDashboard();
             });
+
+            // ===========================================================================
+            // NOVO: LÓGICA DO BOTÃO DE TELA CHEIA
+            // ===========================================================================
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const fsEnterIcon = document.getElementById('fs-enter-icon');
+            const fsExitIcon = document.getElementById('fs-exit-icon');
+
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        alert(`Erro ao tentar entrar em tela cheia: ${err.message} (${err.name})`);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+
+            function updateFullscreenIcons() {
+                if (!document.fullscreenElement) {
+                    fsEnterIcon.classList.remove('hidden');
+                    fsExitIcon.classList.add('hidden');
+                } else {
+                    fsEnterIcon.classList.add('hidden');
+                    fsExitIcon.classList.remove('hidden');
+                }
+            }
+            
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', toggleFullscreen);
+                // Ouve por mudanças no estado da tela cheia (ex: usuário apertou ESC)
+                document.addEventListener('fullscreenchange', updateFullscreenIcons);
+            }
         }
 
         function countWeekdays(start, end) {
@@ -342,7 +386,6 @@
             const labels = Object.keys(byDept);
             const data = labels.map(dept => {
                 const { actual, expected } = byDept[dept];
-                // Este é o cálculo: (Checklists Preenchidos / Esperado para o Dept) * 100
                 return expected > 0 ? (actual / expected) * 100 : 0;
             });
 
@@ -404,30 +447,64 @@
                     datalabels: {
                         anchor: 'end',
                         align: 'top',
-                        color: '#4A5568', // Cor do texto (cinza escuro)
+                        color: '#4A5568',
                         font: {
                             weight: 'bold'
                         },
                         formatter: function(value, context) {
-                            // Formata o número para ter 1 casa decimal e adiciona '%'
                             return value.toFixed(1) + '%';
                         }
                     }
                 }
             };
             
-            // Une as opções padrão com as específicas do gráfico
             const finalOptions = { ...defaultOptions, ...options };
             if(options.plugins) {
                  finalOptions.plugins = { ...defaultOptions.plugins, ...options.plugins };
             }
              if(options.indexAxis === 'y'){
-                finalOptions.plugins.datalabels.align = 'right';
-                finalOptions.plugins.datalabels.anchor = 'end';
+                 finalOptions.plugins.datalabels.align = 'right';
+                 finalOptions.plugins.datalabels.anchor = 'end';
              }
 
-
             charts[canvasId] = new Chart(ctx, { type, data, options: finalOptions });
+        }
+        
+        // ===================================================================================
+        // ANIMAÇÃO DE ROLAGEM AUTOMÁTICA E SUAVE
+        // ===================================================================================
+
+        function smoothScrollTo(endY, duration) {
+            const startY = window.scrollY;
+            const distance = endY - startY;
+            let startTime = null;
+
+            function animation(currentTime) {
+                if (startTime === null) startTime = currentTime;
+                const timeElapsed = currentTime - startTime;
+                const progress = Math.min(timeElapsed / duration, 1);
+                const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+
+                window.scrollTo(0, startY + distance * ease);
+
+                if (timeElapsed < duration) {
+                    requestAnimationFrame(animation);
+                }
+            }
+            requestAnimationFrame(animation);
+        }
+
+        function startAutoScroll() {
+            const scrollInterval = 60000; 
+            const pauseAtBottom = 5000;   
+            const scrollDuration = 2500;
+
+            setInterval(() => {
+                smoothScrollTo(document.body.scrollHeight, scrollDuration);
+                setTimeout(() => {
+                    smoothScrollTo(0, scrollDuration);
+                }, pauseAtBottom + scrollDuration);
+            }, scrollInterval);
         }
     </script>
 </body>
